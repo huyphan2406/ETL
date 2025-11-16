@@ -513,51 +513,432 @@ Complete implementation plan to transform the Data Engineering project from curr
 - **Content**: Dev setup, local environment, contribution guidelines, code review
 - **Priority**: MEDIUM
 
----
 
-## SUMMARY
 
-**Total Tasks**: ~150+ individual tasks  
-**Total Phases**: 16  
-**Estimated Duration**: 12-13 weeks  
-**Priority Breakdown**:
-- Critical: 15 tasks
-- High: 45 tasks
-- Medium: 60 tasks
-- Low: 30 tasks
 
-**Completion Criteria**: All tasks marked as "Completed"  
-**Success Metrics**: 
-- 100% test coverage for critical paths
-- Zero critical security vulnerabilities
-- All documentation complete
-- Production deployment successful
 
----
 
-## Implementation Order
 
-1. **Week 1**: Phase 1 (Critical bugs) + Phase 2.1-2.2 (Logging, Error handling)
-2. **Week 2**: Phase 3 (CDC Migration) - Setup Debezium và implement consumer
-3. **Week 3**: Phase 4 (Database improvements) + Phase 2.3-2.5 (Code quality) + Phase 5.1-5.2 (Testing setup)
-4. **Week 4**: Phase 5 (Testing) + Phase 6 (Documentation)
-5. **Week 5**: Phase 7 (Monitoring) + Phase 8 (Docker)
-6. **Week 6**: Phase 8 (Docker completion) + Phase 9 (CI/CD)
-7. **Week 7**: Phase 10 (Security)
-8. **Week 8**: Phase 11 (Performance)
-9. **Week 9**: Phase 12 (DR/Backup)
-10. **Week 10**: Phase 13 (Advanced Monitoring)
-11. **Week 11**: Phase 14 (Load Testing)
-12. **Week 12**: Phase 15 (Production Setup)
-13. **Week 13**: Phase 16 (Documentation) + Final polish
+
+
+
+
+
+
+
+
+
+# PHASE 3: CDC Migration Guide - Hướng Dẫn Chi Tiết Từng Bước
+
+## Mục Lục
+1. [Tổng Quan về CDC](#tổng-quan-về-cdc)
+2. [Chuẩn Bị](#chuẩn-bị)
+3. [Bước 1: Cấu Hình MySQL Binlog](#bước-1-cấu-hình-mysql-binlog)
+4. [Bước 2: Cài Đặt Kafka Connect](#bước-2-cài-đặt-kafka-connect)
+5. [Bước 3: Download Debezium Connector](#bước-3-download-debezium-connector)
+6. [Bước 4: Tạo Debezium Connector Config](#bước-4-tạo-debezium-connector-config)
+7. [Bước 5: Khởi Động Kafka Connect](#bước-5-khởi-động-kafka-connect)
+8. [Bước 6: Tạo CDC Consumer](#bước-6-tạo-cdc-consumer)
+9. [Bước 7: Test và Validation](#bước-7-test-và-validation)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Notes
+## Tổng Quan về CDC
 
-- Tasks are ordered by priority within each phase
-- Dependencies between tasks are noted where applicable
-- Some tasks can be done in parallel
-- Review and testing should happen after each phase
-- Adjust timeline based on team size and resources
+### CDC là gì?
+**Change Data Capture (CDC)** là kỹ thuật theo dõi và capture các thay đổi trong database.
 
+### So sánh Trigger-based vs Log-based CDC
+
+| Tiêu chí | Trigger-based (Hiện tại) | Log-based (Debezium) |
+|----------|-------------------------|----------------------|
+| **Cách hoạt động** | MySQL triggers → Log tables → Poll | MySQL binlog → Debezium → Kafka |
+| **Performance** | Chậm (polling) | Real-time |
+| **Overhead** | Tăng tải database | Không tăng tải |
+| **Reliability** | Có thể miss events | Không miss events |
+| **Setup** | Đơn giản | Phức tạp hơn |
+
+### Tại sao chọn Debezium?
+- ✅ Enterprise-grade, được Red Hat maintain
+- ✅ Tích hợp tốt với Kafka ecosystem
+- ✅ Hỗ trợ nhiều databases (MySQL, PostgreSQL, MongoDB, etc.)
+- ✅ Schema evolution support
+- ✅ Transaction support
+
+---
+
+## Chuẩn Bị
+
+### Yêu Cầu Hệ Thống
+- ✅ MySQL 5.7+ hoặc 8.0+
+- ✅ Kafka đã cài đặt và chạy
+- ✅ Zookeeper (nếu dùng Kafka < 2.8)
+- ✅ Java 11+ (cho Kafka Connect)
+- ✅ Python 3.8+ (cho consumer)
+
+### Kiểm Tra Trạng Tháih
+# Kiểm tra MySQL đang chạy
+mysql --version
+
+# Kiểm tra Kafka đang chạy
+kafka-topics.sh --list --bootstrap-server localhost:9092
+
+# Kiểm tra Java version
+java -version---
+
+## Bước 1: Cấu Hình MySQL Binlog
+
+### 1.1 Tìm MySQL Config File
+
+**Windows:**
+- Thường ở: `C:\ProgramData\MySQL\MySQL Server 8.0\my.ini`
+- Hoặc: `C:\Program Files\MySQL\MySQL Server 8.0\my.ini`
+
+**Linux/Mac:**
+- Thường ở: `/etc/mysql/my.cnf` hoặc `/etc/my.cnf`
+
+### 1.2 Backup Config Filel
+# Windows (PowerShell)
+Copy-Item "C:\ProgramData\MySQL\MySQL Server 8.0\my.ini" "C:\ProgramData\MySQL\MySQL Server 8.0\my.ini.backup"
+### 1.3 Thêm Binlog Configuration
+
+Mở file `my.ini` (Windows) và thêm vào section `[mysqld]`:
+
+[mysqld]
+# Enable binary logging
+log_bin = mysql-bin
+binlog_format = ROW
+binlog_row_image = FULL
+
+# Server ID (unique cho mỗi MySQL server)
+server_id = 1
+
+# Binlog retention (optional - giữ logs trong 7 ngày)
+expire_logs_days = 7
+max_binlog_size = 100M**Giải thích:**
+- `log_bin = mysql-bin`: Bật binary logging
+- `binlog_format = ROW`: Format ROW để capture đầy đủ thay đổi
+- `binlog_row_image = FULL`: Capture cả before và after image
+- `server_id = 1`: ID duy nhất cho server
+
+### 1.4 Restart MySQL
+
+**Windows (PowerShell):**l
+# Tìm tên service
+Get-Service | Where-Object {$_.Name -like "*mysql*"}
+
+# Restart (thay MySQL80 bằng tên service của bạn)
+Restart-Service MySQL80### 1.5 Verify Binlog Đã Bật
+
+Kết nối MySQL và chạy:ql
+SHOW VARIABLES LIKE 'log_bin';
+-- Kết quả: log_bin = ON
+
+SHOW VARIABLES LIKE 'binlog_format';
+-- Kết quả: binlog_format = ROW
+
+SHOW BINARY LOGS;
+-- Sẽ hiển thị danh sách binlog files### 1.6 Tạo User cho Debezium
+
+-- Tạo user
+CREATE USER 'debezium'@'localhost' IDENTIFIED BY 'debezium_password';
+
+-- Cấp quyền
+GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'debezium'@'localhost';
+
+FLUSH PRIVILEGES;
+
+-- Verify
+SHOW GRANTS FOR 'debezium'@'localhost';---
+
+## Bước 2: Cài Đặt Kafka Connect
+
+### 2.1 Download Kafka (nếu chưa có)
+
+Download từ: https://kafka.apache.org/downloads
+
+### 2.2 Cấu Hình Kafka Connect
+
+Tạo file: `config/connect-standalone.properties`
+
+# Kafka Connect Standalone Config
+bootstrap.servers=localhost:9092
+
+# Plugin path - nơi đặt Debezium connector
+plugin.path=libs
+
+# Key và value converters
+key.converter=org.apache.kafka.connect.json.JsonConverter
+value.converter=org.apache.kafka.connect.json.JsonConverter
+key.converter.schemas.enable=false
+value.converter.schemas.enable=false
+
+# Offset storage
+offset.storage.file.filename=/tmp/connect.offsets
+offset.flush.interval.ms=10000
+
+# Rest API (optional)
+rest.host.name=localhost
+rest.port=8083### 2.3 Tạo Thư Mục
+
+# Windows
+mkdir libs
+mkdir logs---
+
+## Bước 3: Download Debezium Connector
+
+### 3.1 Download Debezium MySQL Connector
+
+**Windows (PowerShell):**
+cd libs
+mkdir debezium-connector-mysql
+cd debezium-connector-mysql
+
+# Download (version 2.5.0)
+Invoke-WebRequest -Uri "https://repo1.maven.org/maven2/io/debezium/debezium-connector-mysql/2.5.0.Final/debezium-connector-mysql-2.5.0.Final-plugin.tar.gz" -OutFile "debezium.tar.gz"
+
+# Giải nén (cần 7-Zip hoặc tar)
+# Nếu có tar:
+tar -xzf debezium.tar.gz**Hoặc download manual:**
+1. Vào: https://repo1.maven.org/maven2/io/debezium/debezium-connector-mysql/
+2. Chọn version mới nhất (ví dụ: 2.5.0.Final)
+3. Download file: `debezium-connector-mysql-2.5.0.Final-plugin.tar.gz`
+4. Giải nén vào `libs/debezium-connector-mysql/`
+
+---
+
+## Bước 4: Tạo Debezium Connector Config
+
+### 4.1 Tạo Thư Mục
+shell
+mkdir debezium### 4.2 Tạo Connector Configuration
+
+Tạo file: `debezium/mysql-connector.json`
+on
+{
+  "name": "mysql-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "localhost",
+    "database.port": "3306",
+    "database.user": "debezium",
+    "database.password": "debezium_password",
+    "database.server.id": "184054",
+    "database.server.name": "mysql-server",
+    "database.include.list": "new_data",
+    "table.include.list": "new_data.Users",
+    "database.history.kafka.bootstrap.servers": "localhost:9092",
+    "database.history.kafka.topic": "schema-changes.mysql-server",
+    "include.schema.changes": "true",
+    "snapshot.mode": "initial",
+    "snapshot.locking.mode": "minimal",
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.add.fields": "op,source.ts_ms"
+  }
+}**Lưu ý:** Thay các giá trị:
+- `database.hostname`: Host MySQL của bạn
+- `database.user`: User Debezium (đã tạo ở bước 1.6)
+- `database.password`: Password của user
+- `database.include.list`: Database name (ví dụ: "new_data")
+- `table.include.list`: Table name (ví dụ: "new_data.Users")
+
+---
+
+## Bước 5: Khởi Động Kafka Connect
+
+### 5.1 Start Zookeeper (nếu cần)
+rshell
+# Trong thư mục Kafka
+bin\windows\zookeeper-server-start.bat config\zookeeper.properties### 5.2 Start Kafka Broker
+ll
+bin\windows\kafka-server-start.bat config\server.properties### 5.3 Start Kafka Connect
+ll
+bin\windows\connect-standalone.bat config\connect-standalone.properties debezium\mysql-connector.json### 5.4 Verify Connector Đã Chạy
+
+**Kiểm tra logs:**
+- Tìm dòng: `Connector mysql-connector started`
+
+**Kiểm tra Kafka topics:**shell
+bin\windows\kafka-topics.bat --list --bootstrap-server localhost:9092
+
+# Sẽ thấy topics:
+# - mysql-server.new_data.Users (change events)
+# - schema-changes.mysql-server (schema changes)---
+
+## Bước 6: Tạo CDC Consumer
+
+Tạo file: `src/ETL/cdc_consumer.py`
+n
+"""
+CDC Consumer for Debezium change events.
+"""
+import json
+from typing import Dict, Any, Optional
+from kafka import KafkaConsumer
+from kafka.errors import KafkaError as KafkaLibError
+from src.utils.logger import get_logger
+from src.utils.exceptions import KafkaError, CDCProcessingError
+from src.utils.constants import DEFAULT_CONSUMER_GROUP, DEFAULT_POLL_TIMEOUT_MS
+
+
+logger = get_logger("CDCConsumer")
+
+
+class DebeziumMessage:
+    """Wrapper class for Debezium change event."""
+    
+    def __init__(self, message: Dict[str, Any]):
+        self.raw = message
+        self.before = message.get("before")
+        self.after = message.get("after")
+        self.source = message.get("source", {})
+        self.op = message.get("op")  # c=create, u=update, d=delete, r=read
+        
+    @property
+    def operation(self) -> str:
+        """Get operation type as string."""
+        op_map = {
+            "c": "CREATE",
+            "u": "UPDATE", 
+            "d": "DELETE",
+            "r": "READ"
+        }
+        return op_map.get(self.op, "UNKNOWN")
+    
+    @property
+    def table(self) -> str:
+        """Get table name."""
+        return self.source.get("table", "")
+    
+    def get_data(self) -> Optional[Dict[str, Any]]:
+        """Get the actual data."""
+        if self.op == "d":
+            return self.before
+        return self.after
+
+
+class CDCConsumer:
+    """Consumer for Debezium CDC messages."""
+    
+    def __init__(
+        self,
+        topic: str,
+        bootstrap_servers: list = None,
+        group_id: str = DEFAULT_CONSUMER_GROUP
+    ):
+        self.topic = topic
+        self.bootstrap_servers = bootstrap_servers or ["localhost:9092"]
+        self.group_id = group_id
+        self.consumer: Optional[KafkaConsumer] = None
+        self.logger = get_logger("CDCConsumer")
+        
+    def create_consumer(self) -> KafkaConsumer:
+        """Create Kafka consumer."""
+        try:
+            consumer = KafkaConsumer(
+                self.topic,
+                group_id=self.group_id,
+                bootstrap_servers=self.bootstrap_servers,
+                auto_offset_reset="earliest",
+                enable_auto_commit=True,
+                value_deserializer=lambda x: json.loads(x.decode("utf-8")) if x else None
+            )
+            self.logger.info(f"CDC Consumer created for topic: {self.topic}")
+            return consumer
+        except Exception as e:
+            self.logger.error(f"Failed to create CDC consumer: {e}")
+            raise KafkaError(f"Failed to create CDC consumer: {e}") from e
+    
+    def process_change_event(self, message: DebeziumMessage) -> None:
+        """Process a Debezium change event."""
+        try:
+            operation = message.operation
+            data = message.get_data()
+            
+            if not data:
+                return
+            
+            self.logger.info(
+                f"{operation} on {message.table}: user_id={data.get('user_id', 'N/A')}"
+            )
+            
+            # TODO: Implement your logic here
+            # Ví dụ: Sync to MongoDB, update cache, etc.
+                
+        except Exception as e:
+            self.logger.error(f"Error processing change event: {e}")
+            raise CDCProcessingError(f"Failed to process: {e}") from e
+    
+    def consume(self, timeout_ms: int = DEFAULT_POLL_TIMEOUT_MS) -> None:
+        """Start consuming messages."""
+        if not self.consumer:
+            self.consumer = self.create_consumer()
+        
+        self.logger.info(f"Starting to consume from topic: {self.topic}")
+        
+        try:
+            while True:
+                try:
+                    msg_pack = self.consumer.poll(timeout_ms=timeout_ms)
+                    
+                    if not msg_pack:
+                        continue
+                    
+                    for topic_partition, messages in msg_pack.items():
+                        for kafka_message in messages:
+                            try:
+                                debezium_msg = DebeziumMessage(kafka_message.value)
+                                self.process_change_event(debezium_msg)
+                            except Exception as e:
+                                self.logger.error(f"Error: {e}")
+                                continue
+                                
+                except KafkaLibError as e:
+                    self.logger.error(f"Kafka error: {e}")
+                    raise KafkaError(f"Kafka error: {e}") from e
+                    
+        except KeyboardInterrupt:
+            self.logger.info("Consumer interrupted")
+        finally:
+            if self.consumer:
+                self.consumer.close()
+
+
+def main() -> None:
+    """Main function."""
+    # Topic format: <database.server.name>.<database>.<table>
+    topic = "mysql-server.new_data.Users"
+    
+    try:
+        consumer = CDCConsumer(topic=topic)
+        consumer.consume()
+    except Exception as e:
+        logger.error(f"Failed to start: {e}")
+        raise
+
+
+if __name__ == "__main__":
+    main()---
+
+## Bước 7: Test và Validation
+
+### 7.1 Test với MySQL
+
+USE new_data;
+
+-- INSERT
+INSERT INTO Users (user_id, login, gravatar_ID, avatar_url, url) 
+VALUES (999, 'test_user', 'test123', 'https://test.com/avatar', 'https://test.com/user');
+
+-- UPDATE
+UPDATE Users SET login = 'test_user_updated' WHERE user_id = 999;
+
+-- DELETE
+DELETE FROM Users WHERE user_id = 999;### 7.2 Chạy Consumer
+owershell
+python src/ETL/cdc_consumer.pyBạn sẽ thấy logs:
