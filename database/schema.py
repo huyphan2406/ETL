@@ -1,31 +1,44 @@
 from pathlib import Path
+from typing import Any
 from mysql.connector import Error
+from src.utils.logger import get_logger
+from src.utils.exceptions import DatabaseOperationError
+from src.utils.constants import DEFAULT_TABLE_NAME, DEFAULT_COLLECTION_NAME
 
-def create_mysql_schema(connection, cursor, database):
-    schema_path = Path(r"C:/Users/Laptop/PycharmProjects/DE/sql/schema.sql")
+
+logger = get_logger("Schema")
+
+
+def create_mysql_schema(connection: Any, cursor: Any, database: str) -> None:
+    """Create MySQL schema from SQL file."""
+    schema_path = Path(__file__).resolve().parent.parent / "sql" / "schema.sql"
     cursor.execute(f"DROP DATABASE IF EXISTS {database}")
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS {database}")
-    print(f"CREATED DATABASE {database} IN MYSQL")
+    logger.info(f"Created database {database} in MySQL")
     try:
-        cursor.execute(f"USE {database}") # use database
-        with open(schema_path, "r") as file:
+        cursor.execute(f"USE {database}")
+        with open(schema_path, "r", encoding="utf-8") as file:
             sql_script = file.read()
             sql_commands = [cmd.strip() for cmd in sql_script.split(";") if cmd.strip()]
             for cmd in sql_commands:
                 cursor.execute(cmd)
-                print("EXECUTED MYSQL COMMAND")
+                logger.debug("Executed MySQL command")
         connection.commit()
-        print("CREATED MYSQL SCHEMA")
+        logger.info("Created MySQL schema successfully")
     except Error as e:
         connection.rollback()
-        raise Exception(f"FAILED TO CREATE MYSQL SCHEMA {e}") from e
+        logger.error(f"Failed to create MySQL schema: {e}")
+        raise DatabaseOperationError(f"Failed to create MySQL schema: {e}") from e
 
-def create_mongodb_schema(db):
-    if "Users" in db.list_collection_names():
-        db.Users.drop()
+
+def create_mongodb_schema(db: Any) -> None:
+    """Create MongoDB schema with validation."""
+    if DEFAULT_COLLECTION_NAME in db.list_collection_names():
+        db[DEFAULT_COLLECTION_NAME].drop()
+        logger.info(f"Dropped existing collection: {DEFAULT_COLLECTION_NAME}")
 
     db.create_collection(
-        "Users",
+        DEFAULT_COLLECTION_NAME,
         validator={
             "$jsonSchema": {
                 "bsonType": "object",
@@ -40,12 +53,15 @@ def create_mongodb_schema(db):
             }
         }
     )
-    db.Users12345.create_index("user_id", unique=True)
-    print("CREATED MONGODB SCHEMA")
+    db[DEFAULT_COLLECTION_NAME].create_index("user_id", unique=True)
+    logger.info(f"Created MongoDB schema for collection: {DEFAULT_COLLECTION_NAME}")
 
-def create_redis_schema(client):
+
+def create_redis_schema(client: Any) -> None:
+    """Create Redis schema with sample data."""
     try:
-        client.flushdb() # drop database
+        client.flushdb()  # drop database
+        logger.info("Flushed Redis database")
 
         client.set("user:1:login", "GoogleCodeExporter")
         client.set("user:1:gravatar_id", "")
@@ -54,10 +70,12 @@ def create_redis_schema(client):
 
         client.sadd("user_id", "user:1")
 
-        print("ADD DATA SUCCESSFULLY TO REDIS")
+        logger.info("Added sample data to Redis successfully")
+    except Exception as e:
+        logger.error(f"Failed to add data to Redis: {e}")
+        raise DatabaseOperationError(f"Failed to add data to Redis: {e}") from e
 
-    except Error as e:
-        raise Exception(f"FAILED TO ADD DATA TO REDIS {e}") from e
 
-def validate():
-    return
+def validate() -> None:
+    """Placeholder for validation function."""
+    pass

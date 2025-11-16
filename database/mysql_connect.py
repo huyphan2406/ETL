@@ -1,33 +1,41 @@
+from typing import Tuple, Optional, Any
 import mysql.connector
 from config.database_config import get_database_config
 from database.schema import create_mysql_schema
+from src.utils.logger import get_logger
+from src.utils.exceptions import DatabaseConnectionError
+
 
 class MySQLConnect:
-    def __init__(self, host, port, user, password, database) :
+    def __init__(self, host: str, port: int, user: str, password: str, database: str):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
         self.database = database
-        self.config = {"host" : host, "port" : port, "user" : user, "password" : password, "database" : database}
-        self.connection = None
-        self.cursor = None
+        self.config = {"host": host, "port": port, "user": user, "password": password, "database": database}
+        self.connection: Optional[Any] = None
+        self.cursor: Optional[Any] = None
+        self.logger = get_logger("MySQLConnect")
 
-    def connect(self):
+    def connect(self) -> Tuple[Any, Any]:
+        """Connect to MySQL database."""
         try:
-            self.connection = mysql.connector.connect(**self.config) # connect
-            self.cursor = self.connection.cursor() # execute
-            print(f"CONNECTED TO MYSQL")
+            self.connection = mysql.connector.connect(**self.config)
+            self.cursor = self.connection.cursor()
+            self.logger.info(f"Connected to MySQL database: {self.database}")
             return self.connection, self.cursor
         except Exception as e:
-            raise Exception(f"FAILED CONNECT TO MYSQL: {e}") from e
+            self.logger.error(f"Failed to connect to MySQL: {e}")
+            raise DatabaseConnectionError(f"Failed to connect to MySQL: {e}") from e
 
-    def close(self):
+    def close(self) -> None:
+        """Close MySQL connection."""
         if self.cursor:
             self.cursor.close()
         if self.connection and self.connection.is_connected():
             self.connection.close()
-            print (f"MYSQL CLOSED")
+            self.logger.info("MySQL connection closed")
 
     def __enter__(self):
         self.connect()

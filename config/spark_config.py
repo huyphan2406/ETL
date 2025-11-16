@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from config.database_config import get_database_config
+from src.utils.logger import get_logger
 import os
 
 class SparkConnect:
@@ -15,7 +16,7 @@ class SparkConnect:
                  spark_conf: Optional[Dict[str, str]] = None,
                  log_level: str = "WARN"
                  ):
-        self.app_name = app_name,
+        self.app_name = app_name
         self.spark = self.create_spark_session(master_url,executor_memory,executor_cores,driver_memory,num_executor,jars,spark_conf,log_level)
 
     def create_spark_session(
@@ -54,10 +55,12 @@ class SparkConnect:
 
         return spark
 
-    def stop (self):
+    def stop(self) -> None:
+        """Stop Spark session."""
         if self.spark:
             self.spark.stop()
-            print("STOP SPARK SESSON")
+            logger = get_logger("SparkConnect")
+            logger.info("Spark session stopped")
 
 def get_spark_config() -> Dict:
     db_config = get_database_config()
