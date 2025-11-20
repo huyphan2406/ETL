@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import Dict, Optional
 
-
+# cấu hình của toàn bộ database
 class DatabaseConfig:
     def validate(self) -> None:
         for key, value in self.__dict__.items():
@@ -28,16 +28,6 @@ class MySQLConfig(DatabaseConfig):
     jar_path: Optional[str] = None
     table : str = "Users"
 
-@dataclass
-class RedisConfig(DatabaseConfig):
-    host : str
-    user : str
-    password : str
-    database : str
-    port : int
-    jar_path: Optional[str] = None
-    key_column : str = "id"
-
 def get_database_config() -> Dict[str,DatabaseConfig]:
 
     env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -56,14 +46,6 @@ def get_database_config() -> Dict[str,DatabaseConfig]:
             password = os.getenv("MYSQL_PASSWORD"),
             database = os.getenv("MYSQL_DATABASE"),
             jar_path = os.getenv("MYSQL_JAR_PATH")
-        ),
-        "redis" : RedisConfig (
-            host = os.getenv("REDIS_HOST"),
-            port =  int(os.getenv("REDIS_PORT")),
-            user = os.getenv("REDIS_USER"),
-            password = os.getenv("REDIS_PASSWORD"),
-            database = os.getenv("REDIS_DB"),
-            jar_path = os.getenv("REDIS_JAR_PATH")
         )
     }
 

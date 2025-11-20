@@ -2,8 +2,6 @@ from typing import Tuple, Optional, Any
 import mysql.connector
 from config.database_config import get_database_config
 from database.schema import create_mysql_schema
-from src.utils.logger import get_logger
-from src.utils.exceptions import DatabaseConnectionError
 
 
 class MySQLConnect:
@@ -16,26 +14,23 @@ class MySQLConnect:
         self.config = {"host": host, "port": port, "user": user, "password": password, "database": database}
         self.connection: Optional[Any] = None
         self.cursor: Optional[Any] = None
-        self.logger = get_logger("MySQLConnect")
 
     def connect(self) -> Tuple[Any, Any]:
-        """Connect to MySQL database."""
         try:
             self.connection = mysql.connector.connect(**self.config)
             self.cursor = self.connection.cursor()
-            self.logger.info(f"Connected to MySQL database: {self.database}")
+            print(f"Connected to MySQL database: {self.database}")
             return self.connection, self.cursor
         except Exception as e:
-            self.logger.error(f"Failed to connect to MySQL: {e}")
-            raise DatabaseConnectionError(f"Failed to connect to MySQL: {e}") from e
+            print(f"Failed to connect to MySQL: {e}")
+            raise
 
-    def close(self) -> None:
-        """Close MySQL connection."""
+    def close(self):
         if self.cursor:
             self.cursor.close()
         if self.connection and self.connection.is_connected():
             self.connection.close()
-            self.logger.info("MySQL connection closed")
+            print("MySQL connection closed")
 
     def __enter__(self):
         self.connect()

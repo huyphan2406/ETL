@@ -1,9 +1,9 @@
 from pyspark.sql import SparkSession
 from typing import Optional, List, Dict, Any
 from config.database_config import get_database_config
-from src.utils.logger import get_logger
 import os
 
+# cấu hình kết nối của spark
 class SparkConnect:
     def __init__(self,
                  app_name: str,
@@ -55,12 +55,10 @@ class SparkConnect:
 
         return spark
 
-    def stop(self) -> None:
-        """Stop Spark session."""
+    def stop(self):
         if self.spark:
             self.spark.stop()
-            logger = get_logger("SparkConnect")
-            logger.info("Spark session stopped")
+            print("STOP SPARK SESSON")
 
 def get_spark_config() -> Dict:
     db_config = get_database_config()
@@ -85,8 +83,5 @@ def get_spark_config() -> Dict:
                 #"collection": db_config["mongodb"].collection,  # choose collection to write data
                 "database" : db_config["mongodb"].db_name,
                 "uri" : db_config["mongodb"].uri
-        },
-        "redis": {
-
         }
     }

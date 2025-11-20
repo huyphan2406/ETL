@@ -1,6 +1,5 @@
 mysql-connector-python
 pymongo
-redis
 pyspark
 kafka-python
 python-dotenv

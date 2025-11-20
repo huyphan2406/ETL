@@ -18,10 +18,8 @@ Complete implementation plan to transform the Data Engineering project from curr
 - **Priority**: CRITICAL - Security
 
 ### 1.2 Fix Import Error
-- **File**: `database/redis_connect.py` (line 4)
-- **Issue**: `from schema import` missing `database.` prefix
-- **Solution**: Change to `from database.schema import create_redis_schema`
-- **Priority**: CRITICAL - Breaks functionality
+- **Status**: ✅ COMPLETED - Redis removed from project
+- **Note**: Redis functionality has been removed as it was not being used
 
 ### 1.3 Fix Tuple Assignment Bug
 - **File**: `config/spark_config.py` (line 18)
@@ -146,20 +144,15 @@ Complete implementation plan to transform the Data Engineering project from curr
 ## PHASE 4: Database & Infrastructure Improvements (Week 3, Days 1-3)
 
 ### 4.1 Implement Redis Support
-- **Files**: `src/spark/spark_write_data.py`, `config/spark_config.py`
-- **Tasks**:
-  - Implement `spark_write_redis()` method
-  - Implement `validate_spark_redis()` method
-  - Update `write_all_db()` and `validate_all_db()`
-  - Complete Redis config in `get_spark_config()`
-- **Priority**: MEDIUM
+- **Status**: ❌ CANCELLED - Redis removed from project
+- **Reason**: Redis was not being used in the ETL pipeline
+- **Priority**: N/A
 
 ### 4.2 Add Connection Pooling
 - **Files**: `database/*_connect.py`
 - **Implementation**:
   - MySQL: Use `mysql.connector.pooling`
   - MongoDB: Reuse connections
-  - Redis: Connection pool
 - **New File**: `database/connection_pool.py` (new)
 - **Priority**: HIGH
 
